@@ -1,0 +1,4 @@
+name: EcoNexusLite
+version: '1.0'
+main: it.mikeslab.econexuslite.EcoNexusLite
+api-version: '1.18'
