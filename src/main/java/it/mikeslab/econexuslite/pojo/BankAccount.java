@@ -1,14 +1,27 @@
 package it.mikeslab.econexuslite.pojo;
 
 import it.mikeslab.commons.api.database.SerializableMapConvertible;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.Setter;
 
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
+@Getter
+@AllArgsConstructor
 public class BankAccount implements SerializableMapConvertible<BankAccount> { // todo check comparison with Identity
 
     private UUID ownerUUID;
+
+    @Setter
+    private double balance;
+
+
+    public BankAccount(UUID ownerUUID) {
+        this.ownerUUID = ownerUUID;
+    }
 
     @Override
     public BankAccount fromMap(Map<String, Object> map) {
@@ -35,3 +48,4 @@ public class BankAccount implements SerializableMapConvertible<BankAccount> { //
         return Set.of();
     }
 }
+//@AllArgsConstructor

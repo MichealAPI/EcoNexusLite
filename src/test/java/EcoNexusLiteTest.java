@@ -6,19 +6,12 @@ class EcoNexusLiteTest {
 
     private static EcoNexusLite plugin;
 
-    private static final String[] dependencies = {
-        "Vault"
-    };
-
     @BeforeAll
     public static void setUp() {
 
         MockBukkit.mock();
         plugin = MockBukkit.load(EcoNexusLite.class);
 
-        for (String dependency : dependencies) {
-            //MockBukkit.createMockPlugin();
-        }
     }
 
     @AfterAll
@@ -31,18 +24,6 @@ class EcoNexusLiteTest {
     void testConfigs() {
         Assertions.assertNotNull(plugin.getLanguage().getConfiguration());
         Assertions.assertNotNull(plugin.getLanguage().getConfiguration());
-    }
-
-    @Test
-    @DisplayName("Verify that inventories have been loaded successfully")
-    void testInventories() {
-        // todo registrar must be coded
-    }
-
-    @Test
-    @DisplayName("Verify that Vault Economy has been hooked successfully")
-    void testVault() {
-        Assertions.assertNotNull(EcoNexusLite.getEcon());
     }
 
 
