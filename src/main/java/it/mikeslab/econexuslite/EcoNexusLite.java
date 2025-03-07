@@ -13,18 +13,21 @@ import it.mikeslab.commons.api.inventory.util.action.ActionHandler;
 import it.mikeslab.commons.api.various.message.MessageHelperImpl;
 import it.mikeslab.econexuslite.config.ConfigKey;
 import it.mikeslab.econexuslite.config.LanguageKey;
+import it.mikeslab.econexuslite.handler.BankAccountHandler;
 import it.mikeslab.econexuslite.helper.InventoryHelper;
 import it.mikeslab.econexuslite.pojo.BankAccount;
 import lombok.AccessLevel;
 import lombok.Getter;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.java.JavaPluginLoader;
 
-import java.io.File;
+import java.io.*;
+import java.nio.file.Files;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
@@ -43,7 +46,10 @@ public final class EcoNexusLite extends JavaPlugin {
     private ActionHandler actionHandler;
     private ConcurrentHashMap<String, GuiConfig> cachedConfigs;
 
+    @Getter(AccessLevel.PRIVATE)
     private AsyncDatabase<BankAccount> bankAccountDatabase;
+
+    private BankAccountHandler bankAccountHandler;
 
     private MessageHelperImpl messageHelper;
 
@@ -73,179 +79,199 @@ public final class EcoNexusLite extends JavaPlugin {
 
         this.checkDebugMode();
 
-        if (!this.isTestEnvironment()) {
-            this.initDatabase().thenAccept(
-                    success -> {
-                        if (success) {
-                            this.getLogger().info("Connected to the database");
-                        } else {
-                            fatalError("Failed to connect to the database. This plugin will be disabled.");
-                        }
+        this.initDatabase().thenAccept(
+                success -> {
+                    if (success) {
+                        this.getLogger().info("Connected to the database");
+                    } else {
+                        fatalError("Failed to connect to the database. This plugin will be disabled.");
                     }
-            );
+                }
+        );
 
-            // Try to hook into Vault
-            boolean res = this.setupEconomy();
+        this.bankAccountHandler = new BankAccountHandler(
+                this.getBankAccountDatabase()
+        );
 
-            if (!res) {
+        // Try to hook into Vault
+        boolean res = this.setupEconomy();
 
-                this.getLogger().info("Vault not found, using internal economy system");
-                assert econ != null;
+        if (!res) {
 
-            }
-
-            } else {
-                getLogger().info("Test environment is currently running");
-            }
-        }
-
-        @Override
-        public void onDisable() {
-
-            if (!this.isTestEnvironment()) {
-                // disconnect from the database
-                this.bankAccountDatabase.disconnect().thenAccept(
-                        success -> {
-                            if(success) {
-                                this.getLogger().info("Disconnected from the database");
-                            } else {
-                                this.getLogger().warning("Failed to disconnect from the database");
-                            }
-                        }
-                );
-            }
+            this.getLogger().info("Vault not found, using internal economy system");
 
         }
+    }
 
+    @Override
+    public void onDisable() {
 
-        private void initConfig() {
-
-            File configFile = new File( "config.yml");
-            File languageFile = new File("language.yml");
-
-            save(configFile.getName());
-            save(languageFile.getName());
-
-            this.customConfig = LabCommons.registerConfigurable(this.getDataFolder(), configFile, ConfigKey.class);
-            this.language = LabCommons.registerConfigurable(this.getDataFolder(), languageFile, LanguageKey.class);
-
-        }
-
-        private CompletableFuture<Boolean> initDatabase() {
-
-            System.out.println(this.getCustomConfig().getConfiguration());
-
-            ConfigurationSection section = this.getCustomConfig()
-                    .getConfiguration()
-                    .getConfigurationSection("database");
-
-            ConfigDatabaseUtil<BankAccount> configDatabaseUtil = new ConfigDatabaseUtil<>(
-                    section,
-                    this.getDataFolder()
-            );
-
-            Database<BankAccount> database = configDatabaseUtil.getDatabaseInstance();
-
-            this.bankAccountDatabase = new AsyncDatabaseImpl<>(database);
-
-            return this.bankAccountDatabase.connect(new BankAccount());
-        }
-
-        public void checkDebugMode() {
-
-            setMongoLoggingToInfo(); // evaluates if the mongo logging should
-            // be set to info according to the configuration
-
-            if(this.getCustomConfig().getBoolean(ConfigKey.DEBUG_MODE)) {
-                LabCommons.enableDebuggingMode();
-            } else {
-                LabCommons.disableDebuggingMode();
-            }
-        }
-
-        private void initInventories() {
-
-            InventoryHelper helper = new InventoryHelper();
-            helper.initialize(this);
-
-            this.guiFactory = helper.getGuiFactory();
-            this.guiListener = helper.getGuiListener();
-            this.actionHandler = helper.getActionHandler();
-            this.cachedConfigs = helper.getCachedGuiConfig();
-
-            // todo condition parser & gui config registrar implementation
-
-        }
-
-        /**
-         * Reloads the configuration files and inventories
-         */
-        public void reload() {
-            // Reload configuration files
-            this.checkDebugMode();
-
-            this.language = this.getLanguage().reload();
-            this.customConfig = this.getCustomConfig().reload();
-
-            // Reload inventories
-            this.initInventories();
-        }
-
-        /*
-         * Logs a fatal error and disables the plugin
-         */
-        private void fatalError(String error) {
-            this.getLogger().log(Level.SEVERE, error);
-            this.getServer().getPluginManager().disablePlugin(this);
-        }
-
-        private void initListeners() {
-
-            this.getServer().getPluginManager().registerEvents(
-                    guiListener,
-                    this
-            );
-
-        }
-
-        /**
-         * Set the mongo logging level to >WARN if the configuration is set to false
-         */
-        private void setMongoLoggingToInfo() {
-            if(!this.getCustomConfig().getBoolean(ConfigKey.MONGO_LOGGING)) {
-
-                if (this.labCommons == null) return;
-
-                LabCommons.disableMongoInfoLogging();
-            }
-        }
-
-        private void save(String resource) {
-            if(!new File(getDataFolder(), resource).exists()) {
-                saveResource(resource, false);
-            }
-        }
-
-        private boolean setupEconomy() {
-            if (getServer().getPluginManager().getPlugin("Vault") == null) {
-                return false;
-            }
-            RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
-            if (rsp == null) {
-                return false;
-            }
-            econ = rsp.getProvider();
-            return econ != null;
-        }
-
-        private void initPlaceholders() {
-            // todo
-        }
-
-        private boolean isTestEnvironment() {
-            return this.getServer().getName().equals("ServerMock");
-        }
-
-
+        // disconnect from the database
+        this.bankAccountDatabase.disconnect().thenAccept(
+                success -> {
+                    if(success) {
+                        this.getLogger().info("Disconnected from the database");
+                    } else {
+                        this.getLogger().warning("Failed to disconnect from the database");
+                    }
+                }
+        );
 
     }
+
+
+    private void initConfig() {
+
+        File dataFolder = this.isTestEnvironment() ? null : this.getDataFolder();
+
+        if (dataFolder == null) {
+            // set to the test/resources folder
+
+            dataFolder = new File("src%test%resources".replace("%", File.separator));
+
+        }
+
+
+        String customConfigFileName = "config.yml";
+        String languageFileName = "language.yml";
+
+        if (!this.isTestEnvironment()) {
+            save(customConfigFileName);
+            save(languageFileName);
+        }
+
+        this.customConfig = LabCommons.registerConfigurable(dataFolder, customConfigFileName, ConfigKey.class);
+        this.language = LabCommons.registerConfigurable(dataFolder, languageFileName, LanguageKey.class);
+    }
+
+    private CompletableFuture<Boolean> initDatabase() {
+
+        ConfigurationSection section = this.getCustomConfig()
+                .getConfiguration()
+                .getConfigurationSection("database");
+
+        ConfigDatabaseUtil<BankAccount> configDatabaseUtil = new ConfigDatabaseUtil<>(
+                section,
+                this.getDataFolder()
+        );
+
+        Database<BankAccount> database = configDatabaseUtil.getDatabaseInstance();
+
+        this.bankAccountDatabase = new AsyncDatabaseImpl<>(database);
+
+        if (this.isTestEnvironment()) {
+            return CompletableFuture.completedFuture(
+                    this.bankAccountDatabase.connect(new BankAccount()).join()
+            );
+        }
+
+        return this.bankAccountDatabase.connect(new BankAccount());
+    }
+
+    public void checkDebugMode() {
+
+        setMongoLoggingToInfo(); // evaluates if the mongo logging should
+        // be set to info according to the configuration
+
+        if(this.getCustomConfig().getBoolean(ConfigKey.DEBUG_MODE)) {
+            LabCommons.enableDebuggingMode();
+        } else {
+            LabCommons.disableDebuggingMode();
+        }
+    }
+
+    private void initInventories() {
+
+        InventoryHelper helper = new InventoryHelper();
+        helper.initialize(this);
+
+        this.guiFactory = helper.getGuiFactory();
+        this.guiListener = helper.getGuiListener();
+        this.actionHandler = helper.getActionHandler();
+        this.cachedConfigs = helper.getCachedGuiConfig();
+
+        // todo condition parser & gui config registrar implementation
+
+    }
+
+    /**
+     * Reloads the configuration files and inventories
+     */
+    public void reload() {
+        // Reload configuration files
+        this.checkDebugMode();
+
+        this.language = this.getLanguage().reload();
+        this.customConfig = this.getCustomConfig().reload();
+
+        // Reload inventories
+        this.initInventories();
+    }
+
+    /*
+     * Logs a fatal error and disables the plugin
+     */
+    private void fatalError(String error) {
+        this.getLogger().log(Level.SEVERE, error);
+        this.getServer().getPluginManager().disablePlugin(this);
+    }
+
+    private void initListeners() {
+
+        this.getServer().getPluginManager().registerEvents(
+                guiListener,
+                this
+        );
+
+    }
+
+    /**
+     * Set the mongo logging level to >WARN if the configuration is set to false
+     */
+    private void setMongoLoggingToInfo() {
+        if(!this.getCustomConfig().getBoolean(ConfigKey.MONGO_LOGGING)) {
+
+            if (this.labCommons == null) return;
+
+            LabCommons.disableMongoInfoLogging();
+        }
+    }
+
+    private void save(String resource) {
+        if(!new File(getDataFolder(), resource).exists()) {
+            saveResource(resource, false);
+        }
+    }
+
+    private boolean setupEconomy() {
+        if (getServer().getPluginManager().getPlugin("Vault") == null) {
+            return false;
+        }
+        RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
+        if (rsp == null) {
+            return false;
+        }
+        econ = rsp.getProvider();
+        return econ != null;
+    }
+
+    private void initPlaceholders() {
+        // todo
+    }
+
+    private boolean isTestEnvironment() {
+        return this.getServer().getName().equals("ServerMock");
+    }
+
+    public CompletableFuture<Boolean> isDatabaseConnected() {
+
+        if (this.bankAccountDatabase == null) {
+            return CompletableFuture.completedFuture(false);
+        }
+
+        return this.bankAccountDatabase.isConnected();
+    }
+
+
+
+}
