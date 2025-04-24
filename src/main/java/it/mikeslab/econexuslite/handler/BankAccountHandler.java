@@ -24,7 +24,7 @@ public class BankAccountHandler {
     public CompletableFuture<Boolean> addAccount(UUID targetUUID, double defaultBalance, boolean upsert) {
 
         BankAccount dummyAccount = new BankAccount(targetUUID);
-        dummyAccount.setBalance(defaultBalance);
+        dummyAccount.setValue(BankAccount.Field.BALANCE, defaultBalance);
 
         // First check if account already exists
         return findOne(targetUUID).thenCompose(existingAccount -> {
@@ -61,12 +61,12 @@ public class BankAccountHandler {
                         return false;
                     }
 
-                    // edits balance
-                    double targetBalance = forceSet ? amount : val.getBalance() - amount;
+                    // edit balance
+                    double targetBalance = forceSet ? amount : (Double) val.getValue(BankAccount.Field.BALANCE) - amount;
 
                     // todo consider hook into Vault here
 
-                    val.setBalance(targetBalance);
+                    val.setValue(BankAccount.Field.BALANCE, targetBalance);
 
                     return true;
                 }

@@ -26,3 +26,39 @@ database:
   username: ""
   database: ""
   table: ""
+
+# Banknote configuration
+banknotes:
+  # Base configuration for all banknotes
+  base:
+    material: PAPER
+    display-name: "<gold>Banknote: <green>$%value%"
+    lore:
+      - "<gray>Right-click to deposit"
+      - "<dark_gray>Banknote Value: $%value%"
+    glow: false
+    custom-model-data: -1
+
+  # Specific configurations for banknotes with certain values
+  # Format: value: configuration
+  specific:
+    # Example: Custom configuration for $10 banknotes
+    10.0:
+      material: PAPER
+      display-name: "<gold>$10 Banknote"
+      lore:
+        - "<gray>A small banknote worth $10"
+        - "<gray>Right-click to deposit"
+        - "<dark_gray>Banknote Value: $10.00"
+      glow: true
+
+    # Example: Custom configuration for $100 banknotes
+    100.0:
+      material: PAPER
+      display-name: "<gold>$100 Banknote"
+      lore:
+        - "<gray>A valuable banknote worth $100"
+        - "<gray>Right-click to deposit"
+        - "<dark_gray>Banknote Value: $100.00"
+      glow: true
+      custom-model-data: 1

@@ -14,24 +14,22 @@ import it.mikeslab.commons.api.various.message.MessageHelperImpl;
 import it.mikeslab.econexuslite.config.ConfigKey;
 import it.mikeslab.econexuslite.config.LanguageKey;
 import it.mikeslab.econexuslite.handler.BankAccountHandler;
+import it.mikeslab.econexuslite.handler.BanknoteHandler;
 import it.mikeslab.econexuslite.helper.InventoryHelper;
 import it.mikeslab.econexuslite.pojo.BankAccount;
 import lombok.AccessLevel;
 import lombok.Getter;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.configuration.ConfigurationSection;
-import org.bukkit.configuration.file.YamlConfiguration;
 import org.bukkit.plugin.PluginDescriptionFile;
 import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.plugin.java.JavaPluginLoader;
 
-import java.io.*;
-import java.nio.file.Files;
+import java.io.File;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
-import java.util.logging.Logger;
 
 @Getter
 public final class EcoNexusLite extends JavaPlugin {
@@ -50,6 +48,9 @@ public final class EcoNexusLite extends JavaPlugin {
     private AsyncDatabase<BankAccount> bankAccountDatabase;
 
     private BankAccountHandler bankAccountHandler;
+
+    @Getter
+    private BanknoteHandler banknoteHandler;
 
     private MessageHelperImpl messageHelper;
 
@@ -92,6 +93,14 @@ public final class EcoNexusLite extends JavaPlugin {
         this.bankAccountHandler = new BankAccountHandler(
                 this.getBankAccountDatabase()
         );
+
+
+        // Initialize the BanknoteHandler
+        this.banknoteHandler = new BanknoteHandler(
+                this,
+                this.getCustomConfig()
+        );
+        this.banknoteHandler.initialize();
 
         // Try to hook into Vault
         boolean res = this.setupEconomy();
@@ -161,11 +170,11 @@ public final class EcoNexusLite extends JavaPlugin {
 
         if (this.isTestEnvironment()) {
             return CompletableFuture.completedFuture(
-                    this.bankAccountDatabase.connect(new BankAccount()).join()
+                    this.bankAccountDatabase.connect(new BankAccount(null)).join()
             );
         }
 
-        return this.bankAccountDatabase.connect(new BankAccount());
+        return this.bankAccountDatabase.connect(new BankAccount(null));
     }
 
     public void checkDebugMode() {
@@ -203,6 +212,11 @@ public final class EcoNexusLite extends JavaPlugin {
 
         this.language = this.getLanguage().reload();
         this.customConfig = this.getCustomConfig().reload();
+
+        // Reload banknote handler
+        if (this.banknoteHandler != null) {
+            this.banknoteHandler.reload();
+        }
 
         // Reload inventories
         this.initInventories();
@@ -260,7 +274,7 @@ public final class EcoNexusLite extends JavaPlugin {
     }
 
     private boolean isTestEnvironment() {
-        return this.getServer().getName().equals("ServerMock");
+        return this.getServer().getName().equals("ServerMock") || this.getServer() == null;
     }
 
     public CompletableFuture<Boolean> isDatabaseConnected() {
