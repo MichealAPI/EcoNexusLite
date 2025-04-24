@@ -19,6 +19,8 @@ public class Banknote extends SimpleMapConvertible<Double, Banknote> {
         if (value < 0) {
             throw new IllegalArgumentException("Banknote value cannot be negative");
         }
+
+        setValue(Field.VALUE, value);
     }
 
     /**

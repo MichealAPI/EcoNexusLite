@@ -10,6 +10,7 @@ import org.junit.jupiter.api.*;
 import org.mockito.MockedStatic;
 import org.mockito.Mockito;
 
+import java.util.HashSet;
 import java.util.UUID;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -19,7 +20,6 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 class EcoNexusLiteTest {
 
     private static EcoNexusLite plugin;
-    private static final double DELTA = 1e-6;
 
     @BeforeAll
     static void setUp() {
@@ -68,19 +68,21 @@ class EcoNexusLiteTest {
             double initialBalance = 100.0;
 
             try {
+                // create
                 boolean accountCreated = plugin.getBankAccountHandler()
                         .addAccount(testUUID, initialBalance, true)
                         .join();
 
                 Assertions.assertTrue(accountCreated, "Account should be created successfully");
 
+                // retrieve
                 BankAccount account = plugin.getBankAccountHandler()
                         .findOne(testUUID)
                         .join();
 
                 assertAll("Account retrieval and validation",
                         () -> Assertions.assertNotNull(account, "Retrieved account should not be null"),
-                        () -> Assertions.assertEquals(initialBalance, account.getValue(BankAccount.Field.BALANCE), DELTA, "Account balance should match the initial value")
+                        () -> Assertions.assertEquals(initialBalance, account.getValue(BankAccount.Field.BALANCE), "Account balance should match the initial value")
                 );
 
                 BankAccount sameAccount = plugin.getBankAccountHandler()
@@ -88,6 +90,22 @@ class EcoNexusLiteTest {
                         .join();
                 Assertions.assertNotNull(sameAccount, "Account should be retrievable using the same UUID");
 
+                // edit
+                double newBalance = 200.0;
+                boolean balanceUpdated = plugin.getBankAccountHandler()
+                        .edit(testUUID, newBalance, true)
+                        .join();
+
+                BankAccount updatedAccount = plugin.getBankAccountHandler()
+                        .findOne(testUUID)
+                        .join();
+
+                assertAll("Account balance update",
+                        () -> Assertions.assertTrue(balanceUpdated, "Account balance should be updated"),
+                        () -> Assertions.assertNotNull(updatedAccount, "Updated account should not be null"),
+                        () -> Assertions.assertEquals(newBalance, updatedAccount.getValue(BankAccount.Field.BALANCE), "Account balance should match the new value"));
+
+                // delete
                 boolean accountDeleted = plugin.getBankAccountHandler()
                         .deleteAccount(testUUID)
                         .join();
@@ -130,7 +148,7 @@ class EcoNexusLiteTest {
                     () -> Assertions.assertNotNull(banknote, "Banknote should be created successfully"),
                     () -> Assertions.assertEquals(Material.PAPER, banknote.getType(), "Banknote should be made of paper by default"),
                     () -> Assertions.assertTrue(plugin.getBanknoteHandler().isBanknote(banknote), "Item should be recognized as a banknote"),
-                    () -> Assertions.assertEquals(testValue, plugin.getBanknoteHandler().getBanknoteValue(banknote), DELTA, "Banknote value should match the test value")
+                    () -> Assertions.assertEquals(testValue, plugin.getBanknoteHandler().getBanknoteValue(banknote), "Banknote value should match the test value")
             );
 
             ItemStack nonBanknote = new ItemStack(Material.STONE);
@@ -147,7 +165,7 @@ class EcoNexusLiteTest {
             assertAll("Banknote creation",
                     () -> Assertions.assertNotNull(banknote, "Banknote should be created successfully"),
                     () -> Assertions.assertTrue(plugin.getBanknoteHandler().isBanknote(banknote), "Item should be recognized as a banknote"),
-                    () -> Assertions.assertEquals(testValue, plugin.getBanknoteHandler().getBanknoteValue(banknote), DELTA, "Banknote value should match the test value")
+                    () -> Assertions.assertEquals(testValue, plugin.getBanknoteHandler().getBanknoteValue(banknote), "Banknote value should match the test value")
             );
         }
 
@@ -170,7 +188,43 @@ class EcoNexusLiteTest {
         void shouldReturnZeroForInvalidBanknote() {
             ItemStack invalid = new ItemStack(Material.DIRT);
             double value = plugin.getBanknoteHandler().getBanknoteValue(invalid);
-            Assertions.assertEquals(0.0, value, DELTA, "Invalid banknote should return value 0");
+            Assertions.assertEquals(0.0, value, "Invalid banknote should return value 0");
+        }
+
+        @Test
+        @Order(8)
+        @DisplayName("Should load banknotes correctly from config")
+        void banknoteLoaderShouldWorkCorrectly() {
+            // Get the BanknoteLoader from the plugin
+            it.mikeslab.econexuslite.bootstrap.BanknoteLoader loader = plugin.getBanknoteLoader();
+            Assertions.assertNotNull(loader, "BanknoteLoader should not be null");
+
+            // Load banknotes from config
+            HashSet<Banknote> banknotes = loader.fromConfig(Banknote.class);
+            Assertions.assertNotNull(banknotes, "Loaded banknotes should not be null");
+            Assertions.assertFalse(banknotes.isEmpty(), "Loaded banknotes should not be empty");
+
+            // Verify specific banknotes are loaded
+            boolean foundTen = false;
+            boolean foundHundred = false;
+
+            for (Banknote banknote : banknotes) {
+
+                double value = banknote.getValue(Banknote.Field.VALUE);
+
+                if (value == 10.0) {
+                    foundTen = true;
+                } else if (value == 100.0) {
+                    foundHundred = true;
+                }
+            }
+
+            boolean finalFoundHundred = foundHundred;
+            boolean finalFoundTen = foundTen;
+            assertAll("Specific banknotes loading",
+                    () -> Assertions.assertTrue(finalFoundTen, "Banknote with value 10.0 should be loaded"),
+                    () -> Assertions.assertTrue(finalFoundHundred, "Banknote with value 100.0 should be loaded")
+            );
         }
     }
 }

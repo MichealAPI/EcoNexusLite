@@ -11,12 +11,14 @@ import it.mikeslab.commons.api.inventory.event.GuiListener;
 import it.mikeslab.commons.api.inventory.factory.GuiFactory;
 import it.mikeslab.commons.api.inventory.util.action.ActionHandler;
 import it.mikeslab.commons.api.various.message.MessageHelperImpl;
+import it.mikeslab.econexuslite.bootstrap.BanknoteLoader;
 import it.mikeslab.econexuslite.config.ConfigKey;
 import it.mikeslab.econexuslite.config.LanguageKey;
 import it.mikeslab.econexuslite.handler.BankAccountHandler;
 import it.mikeslab.econexuslite.handler.BanknoteHandler;
 import it.mikeslab.econexuslite.helper.InventoryHelper;
 import it.mikeslab.econexuslite.pojo.BankAccount;
+import it.mikeslab.econexuslite.pojo.ConfigStructure;
 import lombok.AccessLevel;
 import lombok.Getter;
 import net.milkbowl.vault.economy.Economy;
@@ -57,6 +59,9 @@ public final class EcoNexusLite extends JavaPlugin {
     private boolean placeholderAPIEnabled;
 
     private Configurable language, customConfig;
+
+    @Getter
+    private BanknoteLoader banknoteLoader;
 
     private static EcoNexusLite instance;
 
@@ -101,6 +106,9 @@ public final class EcoNexusLite extends JavaPlugin {
                 this.getCustomConfig()
         );
         this.banknoteHandler.initialize();
+
+        // Initialize the BanknoteLoader
+        this.initBanknotes();
 
         // Try to hook into Vault
         boolean res = this.setupEconomy();
@@ -151,6 +159,19 @@ public final class EcoNexusLite extends JavaPlugin {
 
         this.customConfig = LabCommons.registerConfigurable(dataFolder, customConfigFileName, ConfigKey.class);
         this.language = LabCommons.registerConfigurable(dataFolder, languageFileName, LanguageKey.class);
+    }
+
+    private void initBanknotes() {
+
+        ConfigStructure cfgStruct = new ConfigStructure("banknotes");
+
+        cfgStruct.setSubsection("banknotes");
+
+        this.banknoteLoader = new BanknoteLoader(
+                this.getCustomConfig(),
+                cfgStruct
+        );
+
     }
 
     private CompletableFuture<Boolean> initDatabase() {

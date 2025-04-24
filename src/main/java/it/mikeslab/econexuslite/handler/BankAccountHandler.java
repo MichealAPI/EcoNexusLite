@@ -49,6 +49,17 @@ public class BankAccountHandler {
     }
 
     // add money, consider possible hook into Vault
+
+    /**
+     * Edits the balance of a bank account identified by the given reference UUID.
+     *
+     * @param referenceUUID the unique identifier of the bank account to be edited
+     * @param amount the value to set or add to the balance
+     * @param forceSet if true, the balance is directly set to the specified amount;
+     *                 if false, the specified amount is added to the current balance
+     * @return a CompletableFuture containing a boolean result: true if the operation was successful,
+     *         or false if the bank account does not exist
+     */
     public CompletableFuture<Boolean> edit(UUID referenceUUID, double amount, boolean forceSet) {
 
         CompletableFuture<BankAccount> searchCompletable = this.findOne(referenceUUID);
@@ -62,13 +73,15 @@ public class BankAccountHandler {
                     }
 
                     // edit balance
-                    double targetBalance = forceSet ? amount : (Double) val.getValue(BankAccount.Field.BALANCE) - amount;
+                    double targetBalance = forceSet ? amount : (Double) val.getValue(BankAccount.Field.BALANCE) + amount;
 
                     // todo consider hook into Vault here
 
                     val.setValue(BankAccount.Field.BALANCE, targetBalance);
 
-                    return true;
+                    // Update the account in the database
+
+                    return db.upsert(val).thenApply(result -> true).join();
                 }
         );
 

@@ -16,11 +16,11 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class ConfigStructure {
 
-    private final String keyPlaceholder;
-    private HashMap<String, String> specifiers = new HashMap<>();
+    private final String keyPlaceholder; // id key
+    private HashMap<String, String> specifiers = new HashMap<>(); // key -> value
 
     @Setter @Getter
-    private String subsection;
+    private String subsection; // subsection key
 
     /**
      * Load the object from the configuration using a given structure
